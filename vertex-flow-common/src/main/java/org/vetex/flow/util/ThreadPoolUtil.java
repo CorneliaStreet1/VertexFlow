@@ -24,4 +24,8 @@ public class ThreadPoolUtil {
         return submit(supplier, threadPoolEnum.getExecutor());
     }
 
+    public static void submit(Runnable runnable, ExecutorService executor) {
+        executor.submit(runnable);
+    }
+
 }
