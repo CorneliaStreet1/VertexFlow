@@ -11,8 +11,8 @@ import org.vertex.flow.annotation.OperatorFallBack;
 import org.vertex.flow.domain.exception.OperatorExecuteMethodNotFoundException;
 import org.vertex.flow.domain.exception.OperatorParameterInvalidException;
 import org.vertex.flow.operator.IOperator;
-import org.vertex.flow.wrapper.DirectedAcyclicGraphWrapper;
-import org.vertex.flow.wrapper.GraphNodeWrapper;
+import org.vertex.flow.domain.wrapper.DirectedAcyclicGraphWrapper;
+import org.vertex.flow.domain.wrapper.GraphNodeWrapper;
 import org.vetex.flow.util.ThreadPoolUtil;
 
 import java.lang.reflect.InvocationTargetException;
@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class DagScheduler {
@@ -40,12 +41,19 @@ public class DagScheduler {
     private CountDownLatch syncLatch;
 
     public DagScheduler(ExecutorService executor) {
+        if (executor == null) {
+            throw new IllegalArgumentException("executor cannot be null");
+        }
         this.executor = executor;
+    }
+
+    public DagScheduler() {
+        this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     }
 
     public void runAndWait(DirectedAcyclicGraphWrapper graphWrapper, long timeout, TimeUnit unit) {
         try {
-            if (!isDAG(graphWrapper)) {
+            if (!graphWrapper.isDAG()) {
                 return;
             }
             // todo 构图的时候顺便记录每个节点的每个入参对应的节点ID,传参的时候从全局Map取
@@ -61,7 +69,7 @@ public class DagScheduler {
             return ;
         }
         finally {
-            // todo 清理资源
+            executor.shutdown();
         }
     }
 
@@ -232,43 +240,6 @@ public class DagScheduler {
             params[i] = nodeId2NodeResult.get(nodeId);
         }
         return params;
-    }
-
-    private boolean isDAG(DirectedAcyclicGraphWrapper graphWrapper) {
-
-        Map<String, GraphNodeWrapper> nodeId2NodeWrapper = graphWrapper.getNodeId2NodeWrapper();
-        // 计算每个节点的入度
-        Map<String, Integer> inDegree = new HashMap<>();
-        for (Map.Entry<String, GraphNodeWrapper> entry : nodeId2NodeWrapper.entrySet()) {
-            String nodeId = entry.getKey();
-            GraphNodeWrapper nodeWrapper = entry.getValue();
-            inDegree.put(nodeId, nodeWrapper.getPreDependNodes().size());
-        }
-
-        // 将入度为0的节点放入队列
-        Queue<String> queue = new ArrayDeque<>();
-        for (Map.Entry<String, Integer> entry : inDegree.entrySet()) {
-            if (entry.getValue() == 0) {
-                queue.add(entry.getKey());
-            }
-        }
-
-        int visited = 0;
-        while (!queue.isEmpty()) {
-            String node = queue.poll();
-            visited++;
-
-            for (GraphNodeWrapper next : nodeId2NodeWrapper.get(node).getPreDependNodes()) {
-                inDegree.put(next.getNodeId(), inDegree.get(next.getNodeId()) - 1);
-                if (inDegree.get(next.getNodeId()) == 0) {
-                    queue.add(next.getNodeId());
-                }
-            }
-        }
-
-        // 如果遍历完的节点数 == 图中节点数 → 无环
-        return visited == inDegree.size();
-
     }
 
     private void parseNextDepends4DAG(DirectedAcyclicGraphWrapper dagWrapper) {

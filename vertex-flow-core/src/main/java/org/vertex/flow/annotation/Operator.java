@@ -11,6 +11,6 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE}) // 仅可以标注在类、接口、枚举
 @Retention(RetentionPolicy.RUNTIME)// 需要在运行时可用
 @Component
-public @interface OperatorComponent {
+public @interface Operator {
     
 }

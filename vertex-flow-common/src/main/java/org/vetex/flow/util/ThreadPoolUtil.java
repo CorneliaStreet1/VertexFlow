@@ -1,8 +1,5 @@
 package org.vetex.flow.util;
 
-import org.springframework.stereotype.Component;
-import org.vetex.flow.domain.enums.ThreadPoolEnum;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -18,10 +15,6 @@ public class ThreadPoolUtil {
 
     public static <V> CompletableFuture<V> submit(Supplier<V> supplier, ExecutorService executor) {
         return CompletableFuture.supplyAsync(supplier, executor);
-    }
-
-    public static <V> CompletableFuture<V> submit(Supplier<V> supplier, ThreadPoolEnum threadPoolEnum) {
-        return submit(supplier, threadPoolEnum.getExecutor());
     }
 
     public static void submit(Runnable runnable, ExecutorService executor) {

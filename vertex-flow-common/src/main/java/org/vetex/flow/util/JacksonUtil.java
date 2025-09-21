@@ -59,7 +59,7 @@ public class JacksonUtil {
     public static <T> T toObjectOrNull(String json, TypeReference<T> typeReference) {
         try {
             return mapper.readValue(json, typeReference);
-        } catch (IOException e) {
+        } catch (Exception e) {
             return null;
         }
     }

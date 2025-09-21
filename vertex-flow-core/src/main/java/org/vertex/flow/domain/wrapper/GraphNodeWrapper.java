@@ -1,4 +1,4 @@
-package org.vertex.flow.wrapper;
+package org.vertex.flow.domain.wrapper;
 
 
 import com.google.common.collect.Lists;
@@ -10,7 +10,7 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.vertex.flow.operator.IOperator;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -63,7 +63,9 @@ public class GraphNodeWrapper {
     private boolean init;
 
     /**
-     * 前置依赖节点的节点ID的列表, 与声明的顺序对应(也即算子入参)
+     * 前置依赖节点的节点ID的列表(也即算子入参)
+     * 需要与{@link GraphNodeWrapper#dependOn}调用的顺序保持一致
+     * 或者与{@link GraphNodeWrapper#dependOns}中可变参数的出现顺序保持一致
      */
     private List<String> operatorInputNodeIds;
 
@@ -96,6 +98,7 @@ public class GraphNodeWrapper {
         Objects.requireNonNull(node.getNodeId(), "node id cannot be null");
 
         this.preDependNodes.add(node);
+        this.operatorInputNodeIds.addLast(node.getNodeId());
 
         return this;
     }
