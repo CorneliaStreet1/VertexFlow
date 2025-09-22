@@ -1,4 +1,4 @@
-package org.vertex.flow.domain.wrapper;
+package org.vertex.flow.graph.builder;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -11,7 +11,7 @@ import org.vertex.flow.annotation.OpInput;
 import org.vertex.flow.annotation.OperatorExecute;
 import org.vertex.flow.domain.exception.GraphConstructionException;
 import org.vertex.flow.operator.IOperator;
-import org.vetex.flow.util.bean.BeanUtil;
+import org.vertex.flow.spring.util.BeanUtil;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -84,40 +84,6 @@ public class DirectedAcyclicGraphWrapper {
         nodeId2NodeWrapper.put(nodeId, node);
 
         return node;
-    }
-
-    private boolean validateOperator(IOperator operator) {
-        Class<? extends IOperator> operatorClass = operator.getClass();
-
-        /*
-        * 有且仅有一个 public 方法被 @OperatorExecute 注解标记
-        * */
-        List<Method> operatorExecuteMethods = Arrays.stream(operatorClass.getDeclaredMethods())
-                .filter(method -> method.isAnnotationPresent(OperatorExecute.class))
-                .toList();
-        if (CollectionUtils.isEmpty(operatorExecuteMethods)) {
-            throw new GraphConstructionException("No @OperatorExecute method found" + operatorClass.getSimpleName());
-        }
-        if (operatorExecuteMethods.size() != 1) {
-            throw new GraphConstructionException("Multiple @OperatorExecute methods found" + operatorClass.getSimpleName());
-        }
-
-        Method method = operatorExecuteMethods.getFirst();
-        if (!Modifier.isPublic(method.getModifiers())) {
-            throw new GraphConstructionException("@OperatorExecute method is not public");
-        }
-
-        /*
-        * 每个入参都需要有 @OpInput 注解
-        * */
-        long invalidParamCount = Arrays.stream(method.getParameters())
-                .filter(parameter -> !parameter.isAnnotationPresent(OpInput.class))
-                .count();
-        if (invalidParamCount > 0) {
-            throw new GraphConstructionException("@OperatorExecute method has invalid parameter without @OpInput: " + invalidParamCount);
-        }
-
-        return true;
     }
 
 

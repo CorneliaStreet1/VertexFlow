@@ -1,4 +1,4 @@
-package org.vertex.flow.domain.wrapper;
+package org.vertex.flow.graph.builder;
 
 
 import com.google.common.collect.Lists;
@@ -10,7 +10,6 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.vertex.flow.operator.IOperator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;

@@ -1,7 +1,8 @@
-package org.vetex.flow.util.bean;
+package org.vertex.flow.spring.util;
 
 
 import org.springframework.context.ApplicationContext;
+import org.vertex.flow.spring.SpringContextHolder;
 
 public class BeanUtil {
 

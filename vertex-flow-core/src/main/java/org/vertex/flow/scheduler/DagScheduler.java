@@ -11,8 +11,8 @@ import org.vertex.flow.annotation.OperatorFallBack;
 import org.vertex.flow.domain.exception.OperatorExecuteMethodNotFoundException;
 import org.vertex.flow.domain.exception.OperatorParameterInvalidException;
 import org.vertex.flow.operator.IOperator;
-import org.vertex.flow.domain.wrapper.DirectedAcyclicGraphWrapper;
-import org.vertex.flow.domain.wrapper.GraphNodeWrapper;
+import org.vertex.flow.graph.builder.DirectedAcyclicGraphWrapper;
+import org.vertex.flow.graph.builder.GraphNodeWrapper;
 import org.vetex.flow.util.ThreadPoolUtil;
 
 import java.lang.reflect.InvocationTargetException;
