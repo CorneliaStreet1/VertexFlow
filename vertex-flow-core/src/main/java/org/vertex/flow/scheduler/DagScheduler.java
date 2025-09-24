@@ -11,8 +11,9 @@ import org.vertex.flow.annotation.OperatorFallBack;
 import org.vertex.flow.domain.exception.OperatorExecuteMethodNotFoundException;
 import org.vertex.flow.domain.exception.OperatorParameterInvalidException;
 import org.vertex.flow.operator.IOperator;
-import org.vertex.flow.graph.builder.DirectedAcyclicGraphWrapper;
-import org.vertex.flow.graph.builder.GraphNodeWrapper;
+import org.vertex.flow.domain.model.Graph;
+import org.vertex.flow.domain.model.Node;
+import org.vertex.flow.validator.GraphValidator;
 import org.vetex.flow.util.ThreadPoolUtil;
 
 import java.lang.reflect.InvocationTargetException;
@@ -22,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class DagScheduler {
 
@@ -51,19 +53,18 @@ public class DagScheduler {
         this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     }
 
-    public void runAndWait(DirectedAcyclicGraphWrapper graphWrapper, long timeout, TimeUnit unit) {
+    public void runAndWait(Graph graph, long timeout, TimeUnit unit) {
         try {
-            if (!graphWrapper.isDAG()) {
+            if (!GraphValidator.isDAG(graph)) {
                 return;
             }
-            // todo 构图的时候顺便记录每个节点的每个入参对应的节点ID,传参的时候从全局Map取
-            parseNextDepends4DAG(graphWrapper);
-
-            if (CollectionUtils.isEmpty(graphWrapper.getStartNodesWrapperSet())) {
+            parseNextDepends4DAG(graph);
+            GraphValidator.validateGraph(graph);
+            if (CollectionUtils.isEmpty(graph.getStartNodesSet())) {
                 return ;
             }
 
-            schedule(graphWrapper, timeout, unit);
+            schedule(graph, timeout, unit);
         }
         catch (Exception e) {
             return ;
@@ -73,16 +74,16 @@ public class DagScheduler {
         }
     }
 
-    private void schedule(DirectedAcyclicGraphWrapper graphWrapper, long timeout, TimeUnit unit) {
+    private void schedule(Graph graph, long timeout, TimeUnit unit) {
         /**
          * 初始化信号量,每个结束节点执行完毕则计数减一
          * 所有的结束节点都执行完毕后, 计数归零, 主线程才解除阻塞
          */
-        syncLatch = new CountDownLatch(graphWrapper.getEndNodesWrapperSet().size());
+        syncLatch = new CountDownLatch(graph.getEndNodesSet().size());
 
         // 从开始节点开始调度
-        for (GraphNodeWrapper graphNodeWrapper : graphWrapper.getStartNodesWrapperSet()) {
-            scheduleSingleNode(graphNodeWrapper, graphWrapper, true);
+        for (Node node : graph.getStartNodesSet()) {
+            scheduleSingleNode(node, graph, true);
         }
 
         //线程阻塞等待DAG执行结束，或超时被唤醒
@@ -103,25 +104,25 @@ public class DagScheduler {
 
     //线程阻塞等待DAG执行结束，或超时被唤醒
 
-    private void scheduleSingleNode(GraphNodeWrapper graphNodeWrapper, DirectedAcyclicGraphWrapper graphWrapper, boolean useNewThread) {
+    private void scheduleSingleNode(Node node, Graph graph, boolean useNewThread) {
 
         try {
             // 节点的入度为0才可以调度,否则不能调度
-            if (graphNodeWrapper.getInDegree().get() != 0) {
+            if (node.getInDegree().get() != 0) {
                 return;
             }
 
 
             // 当前节点是结束节点,直接在本线程进行执行就可以
-            if (CollectionUtils.isNotEmpty(graphWrapper.getEndNodesWrapperSet()) && graphWrapper.getEndNodesWrapperSet().contains(graphNodeWrapper)) {
-                runSingleNode(graphNodeWrapper, graphWrapper);
+            if (CollectionUtils.isNotEmpty(graph.getEndNodesSet()) && graph.getEndNodesSet().contains(node)) {
+                runSingleNode(node, graph);
             }
             else if (!useNewThread) {
-                runSingleNode(graphNodeWrapper, graphWrapper);
+                runSingleNode(node, graph);
             }
             else {
                 ThreadPoolUtil.submit(
-                        () -> runSingleNode(graphNodeWrapper, graphWrapper),
+                        () -> runSingleNode(node, graph),
                         executor
                 );
             }
@@ -131,25 +132,25 @@ public class DagScheduler {
 
     }
 
-    private void runSingleNode(GraphNodeWrapper graphNodeWrapper, DirectedAcyclicGraphWrapper graphWrapper) {
+    private void runSingleNode(Node node, Graph graph) {
         try {
-            doNodeExecute(graphNodeWrapper);
+            doNodeExecute(node);
         }
         catch (Exception e) {
-            doNodeFallBack(graphNodeWrapper);
+            doNodeFallBack(node);
         }
         finally {
             //如果是结束节点，则将信号量减一
             boolean isEndOp = false;
-            if (CollectionUtils.isNotEmpty(graphWrapper.getEndNodesWrapperSet()) && graphWrapper.getEndNodesWrapperSet().contains(graphNodeWrapper)) {
+            if (CollectionUtils.isNotEmpty(graph.getEndNodesSet()) && graph.getEndNodesSet().contains(node)) {
                 isEndOp = true;
                 syncLatch.countDown();
-                graphWrapper.getEndNodesWrapperSet().remove(graphNodeWrapper);
+                graph.getEndNodesSet().remove(node);
             }
 
             // 非结束节点, 通知后续节点
             if (!isEndOp) {
-                notifyNextNodes(graphNodeWrapper, graphWrapper);
+                notifyNextNodes(node, graph);
             }
         }
     }
@@ -159,10 +160,10 @@ public class DagScheduler {
      * 1. 通知后续节点,本节点执行完毕了,后续节点的入度 -1
      * 2. 如果后续的某个节点的入度跌0了, 那就调度它
      */
-    private void notifyNextNodes(GraphNodeWrapper graphNodeWrapper,  DirectedAcyclicGraphWrapper graphWrapper) {
-        List<GraphNodeWrapper> runnableNextNodes = Lists.newArrayList();
+    private void notifyNextNodes(Node node, Graph graph) {
+        List<Node> runnableNextNodes = Lists.newArrayList();
 
-        for (GraphNodeWrapper nextNode : graphNodeWrapper.getNextNodes()) {
+        for (Node nextNode : node.getNextNodes()) {
             nextNode.getInDegree().decrementAndGet();
             if (nextNode.getInDegree().get() == 0) {
                 runnableNextNodes.add(nextNode);
@@ -173,32 +174,32 @@ public class DagScheduler {
             return;
         }
         // 调度后续节点
-        for (GraphNodeWrapper nextNode : runnableNextNodes) {
+        for (Node nextNode : runnableNextNodes) {
             // 最后一个节点在本线程调度即可
             boolean useNewThread = runnableNextNodes.indexOf(nextNode) != runnableNextNodes.size() - 1;
-            scheduleSingleNode(graphNodeWrapper, graphWrapper, useNewThread);
+            scheduleSingleNode(node, graph, useNewThread);
         }
     }
 
-    private void doNodeFallBack(GraphNodeWrapper graphNodeWrapper) {
+    private void doNodeFallBack(Node node) {
         try {
-            IOperator operator = graphNodeWrapper.getOperator();
+            IOperator operator = node.getOperator();
             Class<? extends IOperator> operatorClass = operator.getClass();
             Optional<Method> opMethod = Arrays.stream(operatorClass.getDeclaredMethods())
                     .filter(method -> method.isAnnotationPresent(OperatorFallBack.class))
                     .findFirst();
             if (opMethod.isEmpty()) {
-                throw new OperatorExecuteMethodNotFoundException("OperatorId =  " + graphNodeWrapper.getNodeId() + "operator fallBack method not found");
+                throw new OperatorExecuteMethodNotFoundException("OperatorId =  " + node.getNodeId() + "operator fallBack method not found");
             }
             Method method = opMethod.get();
             method.setAccessible(true);
 
-            Object[] methodParam = parseOperatorParam(method,  graphNodeWrapper);
+            Object[] methodParam = parseOperatorParam(method, node);
             Object result = method.invoke(operator, methodParam);
-            nodeId2NodeResult.put(graphNodeWrapper.getNodeId(), result);
+            nodeId2NodeResult.put(node.getNodeId(), result);
         }
         catch (Exception e) {
-            nodeId2NodeResult.put(graphNodeWrapper.getNodeId(), null);
+            nodeId2NodeResult.put(node.getNodeId(), null);
         }
     }
 
@@ -206,23 +207,23 @@ public class DagScheduler {
      *
      * 仅执行算子的方法,不做其他的事
      */
-    private void doNodeExecute(GraphNodeWrapper graphNodeWrapper) throws InvocationTargetException, IllegalAccessException {
-        IOperator operator = graphNodeWrapper.getOperator();
+    private void doNodeExecute(Node node) throws InvocationTargetException, IllegalAccessException {
+        IOperator operator = node.getOperator();
         Class<? extends IOperator> operatorClass = operator.getClass();
         Optional<Method> opMethod = Arrays.stream(operatorClass.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(OperatorExecute.class))
                 .findFirst();
         if (opMethod.isEmpty()) {
-            throw new OperatorExecuteMethodNotFoundException("OperatorId =  " + graphNodeWrapper.getNodeId() + "operator execute method not found");
+            throw new OperatorExecuteMethodNotFoundException("OperatorId =  " + node.getNodeId() + "operator execute method not found");
         }
         Method method = opMethod.get();
         method.setAccessible(true);
 
-        Object[] methodParam = parseOperatorParam(method,  graphNodeWrapper);
+        Object[] methodParam = parseOperatorParam(method, node);
         Object result = method.invoke(operator, methodParam);
-        nodeId2NodeResult.put(graphNodeWrapper.getNodeId(), result);
+        nodeId2NodeResult.put(node.getNodeId(), result);
     }
-    private Object[] parseOperatorParam(Method method, GraphNodeWrapper graphNodeWrapper) {
+    private Object[] parseOperatorParam(Method method, Node node) {
         if (method.getParameterCount() == 0) {
             return new Object[0];
         }
@@ -231,10 +232,10 @@ public class DagScheduler {
         boolean invalidCase = Arrays.stream(method.getParameters())
                 .anyMatch(param -> !param.isAnnotationPresent(OpInput.class));
         if (invalidCase) {
-            throw new OperatorParameterInvalidException("OperatorId =  " + graphNodeWrapper.getNodeId() + "input param has no OpInput Annotation");
+            throw new OperatorParameterInvalidException("OperatorId =  " + node.getNodeId() + "input param has no OpInput Annotation");
         }
         Object[] params = new Object[method.getParameterCount()];
-        List<String> operatorInputNodeIds = graphNodeWrapper.getOperatorInputNodeIds();
+        List<String> operatorInputNodeIds = node.getOrderedOperatorInputNodes().stream().map(Node::getNodeId).toList();
         for (int i = 0; i < params.length; i++) {
             String nodeId = operatorInputNodeIds.get(i);
             params[i] = nodeId2NodeResult.get(nodeId);
@@ -242,19 +243,19 @@ public class DagScheduler {
         return params;
     }
 
-    private void parseNextDepends4DAG(DirectedAcyclicGraphWrapper dagWrapper) {
-        if (dagWrapper.isNextDependParsed()) {
+    private void parseNextDepends4DAG(Graph graph) {
+        if (graph.isNextDependParsed()) {
             return;
         }
 
-        dagWrapper.setNextDependParsed(true);
+        graph.setNextDependParsed(true);
 
-        Map<String, GraphNodeWrapper> nodeWrapperMap = dagWrapper.getNodeId2NodeWrapper();
+        Map<String, Node> nodeWrapperMap = graph.getNodeId2Node();
         if (MapUtils.isEmpty(nodeWrapperMap)) {
             return;
         }
-        for (Map.Entry<String, GraphNodeWrapper> entry : nodeWrapperMap.entrySet()) {
-            GraphNodeWrapper currentNodeWrapper = entry.getValue();
+        for (Map.Entry<String, Node> entry : nodeWrapperMap.entrySet()) {
+            Node currentNodeWrapper = entry.getValue();
             if (!currentNodeWrapper.isInit()) {
                 currentNodeWrapper.setInit(true);
             }
@@ -267,22 +268,22 @@ public class DagScheduler {
         }
 
         // 解析整张Dag的开始节点和结束节点. 开始节点是没有前置依赖节点(入度为0)的节点, 结束节点是没有后继节点(出度为0)的节点
-        parseStartNodesAndEndNodes(dagWrapper);
+        parseStartNodesAndEndNodes(graph);
     }
 
-    private void parseStartNodesAndEndNodes(DirectedAcyclicGraphWrapper dagWrapper) {
-        Map<String, GraphNodeWrapper> nodeWrapperMap = dagWrapper.getNodeId2NodeWrapper();
+    private void parseStartNodesAndEndNodes(Graph graph) {
+        Map<String, Node> nodeWrapperMap = graph.getNodeId2Node();
         if (MapUtils.isEmpty(nodeWrapperMap)) {
             return;
         }
 
-        for (Map.Entry<String, GraphNodeWrapper> entry : nodeWrapperMap.entrySet()) {
-            GraphNodeWrapper wrapper = entry.getValue();
+        for (Map.Entry<String, Node> entry : nodeWrapperMap.entrySet()) {
+            Node wrapper = entry.getValue();
             if (CollectionUtils.isEmpty(wrapper.getPreDependNodes())) {
-                dagWrapper.getStartNodesWrapperSet().add(wrapper);
+                graph.getStartNodesSet().add(wrapper);
             }
             if (CollectionUtils.isEmpty(wrapper.getNextNodes())) {
-                dagWrapper.getEndNodesWrapperSet().add(wrapper);
+                graph.getEndNodesSet().add(wrapper);
             }
         }
     }
@@ -290,21 +291,21 @@ public class DagScheduler {
     /**
      * 将当前节点加入其所有后继节点的前置依赖节点集合中
      */
-    private void parseNext4Node(GraphNodeWrapper currentNodeWrapper) {
-        if (currentNodeWrapper.isInit()) {
+    private void parseNext4Node(Node currentNode) {
+        if (currentNode.isInit()) {
             return;
         }
         //根据当前节点的后继节点, 解析后继依赖关系
-        Set<GraphNodeWrapper> nextNodes = currentNodeWrapper.getNextNodes();
+        Set<Node> nextNodes = currentNode.getNextNodes();
         if (CollectionUtils.isEmpty(nextNodes)) {
             return;
         }
 
         // 将当前节点加入其每个后继节点的前置依赖中
-        for (GraphNodeWrapper nextNode : nextNodes) {
+        for (Node nextNode : nextNodes) {
 
             // 当前节点 已经在其 后继结点 的 前置依赖集合 中, 不重复加入
-            if (CollectionUtils.isNotEmpty(nextNode.getPreDependNodes()) && nextNode.getPreDependNodes().contains(currentNodeWrapper)) {
+            if (CollectionUtils.isNotEmpty(nextNode.getPreDependNodes()) && nextNode.getPreDependNodes().contains(currentNode)) {
                 continue;
             }
 
@@ -313,10 +314,10 @@ public class DagScheduler {
             }
 
             // 否则把当前节点加入此后继结点的依赖节点中
-            nextNode.getPreDependNodes().add(currentNodeWrapper);
+            nextNode.getPreDependNodes().add(currentNode);
 
             // 当前节点的outDegree + 1
-            currentNodeWrapper.getOutDegree().incrementAndGet();
+            currentNode.getOutDegree().incrementAndGet();
         }
 
     }
@@ -324,32 +325,32 @@ public class DagScheduler {
     /**
      * 将当前节点加入其所有前置节点的后继节点集合中
      */
-    private void parseDepend4Node(GraphNodeWrapper currentNodeWrapper) {
-        if (currentNodeWrapper.isInit()) {
+    private void parseDepend4Node(Node currentNode) {
+        if (currentNode.isInit()) {
             return;
         }
 
         //根据 depend 解析依赖关系
-        Set<GraphNodeWrapper> preDependNodes = currentNodeWrapper.getPreDependNodes();
+        Set<Node> preDependNodes = currentNode.getPreDependNodes();
         if (CollectionUtils.isEmpty(preDependNodes)) {
             return;
         }
 
         // 将当前节点添加到每个前置依赖节点的后继节点集合中
-        for (GraphNodeWrapper dependNode : preDependNodes) {
+        for (Node dependNode : preDependNodes) {
 
             // 当前节点已经在其前置依赖节点的后继节点集合中, 不重复加入
-            if (CollectionUtils.isNotEmpty(dependNode.getNextNodes()) && dependNode.getNextNodes().contains(currentNodeWrapper)) {
+            if (CollectionUtils.isNotEmpty(dependNode.getNextNodes()) && dependNode.getNextNodes().contains(currentNode)) {
                 continue;
             }
             //将当前节点添加到前驱节点的后继集合中
             if (dependNode.getNextNodes() == null) {
                 dependNode.setNextNodes(Sets.newHashSet());
             }
-            dependNode.getNextNodes().add(currentNodeWrapper);
+            dependNode.getNextNodes().add(currentNode);
 
             // 当前节点的indegree+1
-            currentNodeWrapper.getInDegree().incrementAndGet();
+            currentNode.getInDegree().incrementAndGet();
         }
     }
 

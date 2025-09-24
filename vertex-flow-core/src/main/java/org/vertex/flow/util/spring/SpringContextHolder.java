@@ -1,4 +1,4 @@
-package org.vertex.flow.spring;
+package org.vertex.flow.util.spring;
 
 import jakarta.annotation.Nonnull;
 import org.springframework.beans.BeansException;

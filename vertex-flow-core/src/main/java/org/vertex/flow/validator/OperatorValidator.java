@@ -1,13 +1,12 @@
 package org.vertex.flow.validator;
 
-import jakarta.annotation.Nullable;
 import org.apache.commons.collections4.CollectionUtils;
 import org.vertex.flow.annotation.OpInput;
 import org.vertex.flow.annotation.OperatorExecute;
 import org.vertex.flow.annotation.OperatorFallBack;
-import org.vertex.flow.domain.exception.GraphConstructionException;
 import org.vertex.flow.domain.exception.OperatorCheckException;
 import org.vertex.flow.operator.IOperator;
+import org.vertex.flow.util.operator.OperatorUtil;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -21,11 +20,10 @@ public class OperatorValidator {
             throw new OperatorCheckException("operator is null");
         }
 
-        if (!(operator instanceof IOperator)) {
+        if (!(operator instanceof IOperator op)) {
             throw new OperatorCheckException("Operator object must be of type IOperator");
         }
 
-        IOperator op = (IOperator) operator;
         validateOperator(op);
     }
 
@@ -36,7 +34,7 @@ public class OperatorValidator {
         checkOperatorExecuteMethod(operatorClass);
 
         // 降级方法检查
-        checkOperatorExecuteMethod(operatorClass);
+        checkFallBackMethod(operatorClass);
     }
 
     /**
@@ -63,7 +61,7 @@ public class OperatorValidator {
         }
 
         // 此前已经检查过了,这里一定能取到
-        Method operatorExecuteMethod = findOperatorExecuteMethods(operatorClass).getFirst();
+        Method operatorExecuteMethod = OperatorUtil.findOperatorExecuteMethods(operatorClass).getFirst();
         Class<?>[] mainParams = operatorExecuteMethod.getParameterTypes();
         Class<?>[] fallbackParams = fallBackMethod.getParameterTypes();
 
@@ -82,21 +80,13 @@ public class OperatorValidator {
         }
     }
 
-
-    private static List<Method> findOperatorExecuteMethods(Class<? extends IOperator> operatorClass) {
-        List<Method> operatorExecuteMethods = Arrays.stream(operatorClass.getDeclaredMethods())
-                .filter(method -> method.isAnnotationPresent(OperatorExecute.class))
-                .toList();
-        return operatorExecuteMethods;
-    }
-
     /**
      * 1.有且仅有一个方法被 @OperatorExecute 注解标记
      * 2.方法必须是 public 的
      * 3. 方法的每个入参都有且仅有一个 @OpInput 注解
      */
     private static void checkOperatorExecuteMethod(Class<? extends IOperator> operatorClass) throws OperatorCheckException {
-        List<Method> operatorExecuteMethods = findOperatorExecuteMethods(operatorClass);
+        List<Method> operatorExecuteMethods = OperatorUtil.findOperatorExecuteMethods(operatorClass);
 
         if (CollectionUtils.isEmpty(operatorExecuteMethods)) {
             throw new OperatorCheckException("No @OperatorExecute method found" + operatorClass.getSimpleName());

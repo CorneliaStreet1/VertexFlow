@@ -1,8 +1,8 @@
-package org.vertex.flow.spring.util;
+package org.vertex.flow.util.spring.util;
 
 
 import org.springframework.context.ApplicationContext;
-import org.vertex.flow.spring.SpringContextHolder;
+import org.vertex.flow.util.spring.SpringContextHolder;
 
 public class BeanUtil {
 
