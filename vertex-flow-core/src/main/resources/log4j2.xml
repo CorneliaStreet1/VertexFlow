@@ -1,0 +1,21 @@
+<Configuration status="WARN" packages="">
+    <Appenders>
+        <!-- 异步控制台输出 -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+
+        <!-- 异步包装 -->
+        <Async name="AsyncConsole">
+            <AppenderRef ref="Console"/>
+        </Async>
+    </Appenders>
+
+    <Loggers>
+        <!-- 根日志等级 -->
+        <Root level="INFO">
+            <!-- 使用异步控制台 -->
+            <AppenderRef ref="AsyncConsole"/>
+        </Root>
+    </Loggers>
+</Configuration>

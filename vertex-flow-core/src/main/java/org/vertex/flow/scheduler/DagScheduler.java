@@ -1,15 +1,17 @@
 package org.vertex.flow.scheduler;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.vertex.flow.annotation.OpInput;
+import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.Logger;
 import org.vertex.flow.annotation.OperatorExecute;
 import org.vertex.flow.annotation.OperatorFallBack;
+import org.vertex.flow.context.GraphContext;
+import org.vertex.flow.context.GraphContextHolder;
 import org.vertex.flow.domain.exception.OperatorExecuteMethodNotFoundException;
-import org.vertex.flow.domain.exception.OperatorParameterInvalidException;
 import org.vertex.flow.operator.IOperator;
 import org.vertex.flow.domain.model.Graph;
 import org.vertex.flow.domain.model.Node;
@@ -23,18 +25,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
+@Slf4j
 public class DagScheduler {
 
 
     private final ExecutorService executor;
-
-    /**
-     * Key:nodeId
-     * Value: node 执行结果
-     */
-    private final Map<String, Object> nodeId2NodeResult = Maps.newConcurrentMap();
 
     /**
      * 主线程阻塞等待所有结束节点执行完成
@@ -64,9 +60,12 @@ public class DagScheduler {
                 return ;
             }
 
+            // 初始化图全局上下文
+            GraphContextHolder.setContext(new GraphContext());
             schedule(graph, timeout, unit);
         }
         catch (Exception e) {
+            log.error(e.getMessage(), e);
             return ;
         }
         finally {
@@ -128,6 +127,7 @@ public class DagScheduler {
             }
         }
         catch (Exception e) {
+
         }
 
     }
@@ -196,10 +196,10 @@ public class DagScheduler {
 
             Object[] methodParam = parseOperatorParam(method, node);
             Object result = method.invoke(operator, methodParam);
-            nodeId2NodeResult.put(node.getNodeId(), result);
+            GraphContextHolder.setValue(node.getNodeId(), result);
         }
         catch (Exception e) {
-            nodeId2NodeResult.put(node.getNodeId(), null);
+            GraphContextHolder.setValue(node.getNodeId(), null);
         }
     }
 
@@ -221,24 +221,18 @@ public class DagScheduler {
 
         Object[] methodParam = parseOperatorParam(method, node);
         Object result = method.invoke(operator, methodParam);
-        nodeId2NodeResult.put(node.getNodeId(), result);
+        GraphContextHolder.setValue(node.getNodeId(), result);
     }
     private Object[] parseOperatorParam(Method method, Node node) {
         if (method.getParameterCount() == 0) {
             return new Object[0];
         }
 
-        // 应该每个入参都被 @OpInput 注解标记,构图阶段就应该校验过了
-        boolean invalidCase = Arrays.stream(method.getParameters())
-                .anyMatch(param -> !param.isAnnotationPresent(OpInput.class));
-        if (invalidCase) {
-            throw new OperatorParameterInvalidException("OperatorId =  " + node.getNodeId() + "input param has no OpInput Annotation");
-        }
         Object[] params = new Object[method.getParameterCount()];
         List<String> operatorInputNodeIds = node.getOrderedOperatorInputNodes().stream().map(Node::getNodeId).toList();
         for (int i = 0; i < params.length; i++) {
             String nodeId = operatorInputNodeIds.get(i);
-            params[i] = nodeId2NodeResult.get(nodeId);
+            params[i] = GraphContextHolder.getValue(nodeId);
         }
         return params;
     }
