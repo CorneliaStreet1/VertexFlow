@@ -5,8 +5,6 @@ import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.logging.LogFactory;
-import org.apache.logging.log4j.Logger;
 import org.vertex.flow.annotation.OperatorExecute;
 import org.vertex.flow.annotation.OperatorFallBack;
 import org.vertex.flow.context.GraphContext;
@@ -63,6 +61,8 @@ public class DagScheduler {
             // 初始化图全局上下文
             GraphContextHolder.setContext(new GraphContext());
             schedule(graph, timeout, unit);
+            //线程阻塞等待DAG执行结束，或超时被唤醒
+            await(timeout, unit);
         }
         catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -70,6 +70,7 @@ public class DagScheduler {
         }
         finally {
             executor.shutdown();
+            GraphContextHolder.clear();
         }
     }
 
@@ -84,9 +85,6 @@ public class DagScheduler {
         for (Node node : graph.getStartNodesSet()) {
             scheduleSingleNode(node, graph, true);
         }
-
-        //线程阻塞等待DAG执行结束，或超时被唤醒
-        await(timeout, unit);
     }
 
     /**
@@ -97,7 +95,7 @@ public class DagScheduler {
         try {
            isTimeout = syncLatch.await(timeOut, timeUnit);
         } catch (InterruptedException e) {
-
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -127,7 +125,7 @@ public class DagScheduler {
             }
         }
         catch (Exception e) {
-
+            log.error(e.getMessage(), e);
         }
 
     }
@@ -200,6 +198,7 @@ public class DagScheduler {
         }
         catch (Exception e) {
             GraphContextHolder.setValue(node.getNodeId(), null);
+            log.error(e.getMessage(), e);
         }
     }
 
