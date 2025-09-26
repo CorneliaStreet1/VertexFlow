@@ -4,7 +4,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import jakarta.annotation.Nonnull;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.vertex.flow.domain.exception.GraphConstructionException;
 import org.vertex.flow.operator.IOperator;
@@ -17,7 +19,8 @@ import java.util.*;
  */
 
 @NoArgsConstructor
-@Data
+@Getter
+@Setter
 public class Graph {
     /**
      * Key: 节点的唯一Id

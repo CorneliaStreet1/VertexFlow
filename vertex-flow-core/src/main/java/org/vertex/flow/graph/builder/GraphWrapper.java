@@ -1,11 +1,13 @@
 package org.vertex.flow.graph.builder;
 
 import jakarta.annotation.Nonnull;
+import lombok.Getter;
 import org.vertex.flow.domain.model.Graph;
 import org.vertex.flow.domain.model.Node;
 import org.vertex.flow.operator.IOperator;
 
 
+@Getter
 public class GraphWrapper {
 
     private final Graph graph;

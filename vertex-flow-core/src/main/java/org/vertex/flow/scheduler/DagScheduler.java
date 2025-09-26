@@ -49,10 +49,10 @@ public class DagScheduler {
 
     public void runAndWait(Graph graph, long timeout, TimeUnit unit) {
         try {
+            parseNextDepends4DAG(graph);
             if (!GraphValidator.isDAG(graph)) {
                 return;
             }
-            parseNextDepends4DAG(graph);
             GraphValidator.validateGraph(graph);
             if (CollectionUtils.isEmpty(graph.getStartNodesSet())) {
                 return ;
@@ -249,10 +249,10 @@ public class DagScheduler {
         }
         for (Map.Entry<String, Node> entry : nodeWrapperMap.entrySet()) {
             Node currentNodeWrapper = entry.getValue();
-            if (!currentNodeWrapper.isInit()) {
-                currentNodeWrapper.setInit(true);
+            if (currentNodeWrapper.isInit()) {
+                continue;
             }
-
+            currentNodeWrapper.setInit(true);
             //根据 depend 解析依赖关系. 解析当前节点的前置依赖节点
             parseDepend4Node(currentNodeWrapper);
 
@@ -285,9 +285,6 @@ public class DagScheduler {
      * 将当前节点加入其所有后继节点的前置依赖节点集合中
      */
     private void parseNext4Node(Node currentNode) {
-        if (currentNode.isInit()) {
-            return;
-        }
         //根据当前节点的后继节点, 解析后继依赖关系
         Set<Node> nextNodes = currentNode.getNextNodes();
         if (CollectionUtils.isEmpty(nextNodes)) {
@@ -319,9 +316,6 @@ public class DagScheduler {
      * 将当前节点加入其所有前置节点的后继节点集合中
      */
     private void parseDepend4Node(Node currentNode) {
-        if (currentNode.isInit()) {
-            return;
-        }
 
         //根据 depend 解析依赖关系
         Set<Node> preDependNodes = currentNode.getPreDependNodes();

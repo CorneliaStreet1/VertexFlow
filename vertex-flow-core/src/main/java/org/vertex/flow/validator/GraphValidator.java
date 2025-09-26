@@ -53,7 +53,7 @@ public class GraphValidator {
             String node = queue.poll();
             visited++;
 
-            for (Node next : nodeId2NodeWrapper.get(node).getPreDependNodes()) {
+            for (Node next : nodeId2NodeWrapper.get(node).getNextNodes()) {
                 inDegree.put(next.getNodeId(), inDegree.get(next.getNodeId()) - 1);
                 if (inDegree.get(next.getNodeId()) == 0) {
                     queue.add(next.getNodeId());

@@ -52,12 +52,12 @@ public class OperatorValidator {
         }
 
         if (fallBackMethods.size() != 1) {
-            throw new OperatorCheckException("Multiple @OperatorFallBack methods found");
+            throw new OperatorCheckException("Multiple @OperatorFallBack methods found: " + operatorClass.getSimpleName());
         }
 
         Method fallBackMethod = fallBackMethods.getFirst();
         if (!Modifier.isPublic(fallBackMethod.getModifiers())) {
-            throw new OperatorCheckException("@OperatorFallBack method is not public");
+            throw new OperatorCheckException("@OperatorFallBack method is not public: "  + operatorClass.getSimpleName());
         }
 
         // 此前已经检查过了,这里一定能取到
@@ -66,17 +66,17 @@ public class OperatorValidator {
         Class<?>[] fallbackParams = fallBackMethod.getParameterTypes();
 
         if (mainParams.length != fallbackParams.length) {
-            throw new OperatorCheckException("Fallback method parameter count mismatch");
+            throw new OperatorCheckException("Fallback method parameter count mismatch: " + operatorClass.getSimpleName());
         }
 
         for (int i = 0; i < mainParams.length; i++) {
             if (!mainParams[i].isAssignableFrom(fallbackParams[i])) {
-                throw new OperatorCheckException("Fallback method parameter type mismatch at index " + i);
+                throw new OperatorCheckException("Fallback method parameter type mismatch at index " + i + ": "  + operatorClass.getSimpleName());
             }
         }
 
         if (!operatorExecuteMethod.getReturnType().isAssignableFrom(fallBackMethod.getReturnType())) {
-            throw new OperatorCheckException("Fallback method return type mismatch");
+            throw new OperatorCheckException("Fallback method return type mismatch: "  + operatorClass.getSimpleName());
         }
     }
 
@@ -89,22 +89,22 @@ public class OperatorValidator {
         List<Method> operatorExecuteMethods = OperatorUtil.findOperatorExecuteMethods(operatorClass);
 
         if (CollectionUtils.isEmpty(operatorExecuteMethods)) {
-            throw new OperatorCheckException("No @OperatorExecute method found" + operatorClass.getSimpleName());
+            throw new OperatorCheckException("No @OperatorExecute method found:" + operatorClass.getSimpleName());
         }
         if (operatorExecuteMethods.size() != 1) {
-            throw new OperatorCheckException("Multiple @OperatorExecute methods found" + operatorClass.getSimpleName());
+            throw new OperatorCheckException("Multiple @OperatorExecute methods found:" + operatorClass.getSimpleName());
         }
 
         Method executeMethod = operatorExecuteMethods.getFirst();
         if (!Modifier.isPublic(executeMethod.getModifiers())) {
-            throw new OperatorCheckException("@OperatorExecute method is not public");
+            throw new OperatorCheckException("@OperatorExecute method is not public:" + operatorClass.getSimpleName());
         }
 
         long invalidParamCount = Arrays.stream(executeMethod.getParameters())
                 .filter(parameter -> !parameter.isAnnotationPresent(OpInput.class))
                 .count();
         if (invalidParamCount > 0) {
-            throw new OperatorCheckException("@OperatorExecute method has invalid parameter without @OpInput: " + invalidParamCount);
+            throw new OperatorCheckException("@OperatorExecute method has invalid parameter without @OpInput: " + operatorClass.getSimpleName());
         }
     }
 }

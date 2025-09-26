@@ -49,12 +49,12 @@ public class NodeValidator {
         Set<Node> preDependNodes = node.getPreDependNodes();
         Method opMethod = NodeUtil.findOperatorExecuteMethod(node);
         if (opMethod == null) {
-            throw new NodeCheckException("@operatorExecute-method not found");
+            throw new NodeCheckException("@operatorExecute-method not found: " + node.getNodeId());
         }
 
         Parameter[] parameters = opMethod.getParameters();
         if (parameters.length != preDependNodes.size()) {
-            throw new NodeCheckException("number of @operatorExecute-method parameters does not match the number of pre-depend nodes");
+            throw new NodeCheckException("number of @operatorExecute-method parameters does not match the number of pre-depend nodes: "  + node.getNodeId());
         }
         for (int i = 0; i < node.getOrderedOperatorInputNodes().size(); i++) {
             Node inputNode = node.getOrderedOperatorInputNodes().get(i);
@@ -62,7 +62,7 @@ public class NodeValidator {
             Parameter parameter = parameters[i];
 
             if (!parameter.getType().isAssignableFrom(returnTypeOfInput)) {
-                throw new NodeCheckException("pre-depend node " + inputNode.getNodeId() + "return type does not match");
+                throw new NodeCheckException("pre-depend node " + inputNode.getNodeId() + "return type does not match: "  + node.getNodeId());
             }
         }
     }

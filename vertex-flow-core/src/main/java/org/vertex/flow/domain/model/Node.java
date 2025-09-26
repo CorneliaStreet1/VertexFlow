@@ -5,6 +5,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import jakarta.annotation.Nonnull;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -20,7 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 一个节点是一个算子的实例以及其他的上下文信息
  * 多个节点可以是同一个算子的实例化, 但是这些节点的Id必须唯一
  */
-@Data
+@Setter
+@Getter
 @Accessors(chain=true)
 public class Node {
 
@@ -127,4 +130,6 @@ public class Node {
     public int hashCode() {
         return new HashCodeBuilder(17, 37).append(nodeId).toHashCode();
     }
+
+
 }
